@@ -14,6 +14,13 @@ from scipy.special import ndtr
 
 _INV_SQRT_2PI = 1.0 / np.sqrt(2.0 * np.pi)
 
+# Time-to-expiry is floored (not branched on) so that T can be an ARRAY: a
+# scalar `if T <= 0` raises on arrays, which blocks pricing a whole path's worth
+# of maturities in one call. Values at or below zero are masked out by np.where
+# afterwards, so the floor never affects a returned number -- it only keeps the
+# intermediate arithmetic finite.
+_T_FLOOR = 1e-12
+
 
 def _npdf(x):
     """Standard normal PDF. Inlined rather than scipy.stats.norm.pdf."""
@@ -39,55 +46,60 @@ def payoff(S, K, cp=1):
 
 
 def bs_price(S, K, T, r, sigma, q=0.0, cp=1):
-    S = np.asarray(S, dtype=float)
-    if T <= 0:
-        return payoff(S, K, cp)
-    d1, d2 = _d1_d2(S, K, T, r, sigma, q)
-    return cp * (
-        S * np.exp(-q * T) * ndtr(cp * d1)
-        - K * np.exp(-r * T) * ndtr(cp * d2)
-    )
+    S, T = np.asarray(S, dtype=float), np.asarray(T, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        Tp = np.maximum(T, _T_FLOOR)
+        d1, d2 = _d1_d2(S, K, Tp, r, sigma, q)
+        v = cp * (
+            S * np.exp(-q * Tp) * ndtr(cp * d1)
+            - K * np.exp(-r * Tp) * ndtr(cp * d2)
+        )
+    return np.where(T <= 0, payoff(S, K, cp), v)
 
 
 def bs_delta(S, K, T, r, sigma, q=0.0, cp=1):
     """dV/dS -- the hedge ratio. Shares of stock per option."""
-    S = np.asarray(S, dtype=float)
-    if T <= 0:
-        # At expiry delta is the indicator of being in the money.
-        return cp * (cp * (S - K) > 0).astype(float)
-    d1, _ = _d1_d2(S, K, T, r, sigma, q)
-    return cp * np.exp(-q * T) * ndtr(cp * d1)
+    S, T = np.asarray(S, dtype=float), np.asarray(T, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        Tp = np.maximum(T, _T_FLOOR)
+        d1, _ = _d1_d2(S, K, Tp, r, sigma, q)
+        d = cp * np.exp(-q * Tp) * ndtr(cp * d1)
+    # At expiry delta is the indicator of being in the money.
+    return np.where(T <= 0, cp * (cp * (S - K) > 0).astype(float), d)
 
 
 def bs_gamma(S, K, T, r, sigma, q=0.0):
     """d2V/dS2 -- how fast delta goes stale. Same for calls and puts."""
-    S = np.asarray(S, dtype=float)
-    if T <= 0:
-        return np.zeros_like(S)
-    d1, _ = _d1_d2(S, K, T, r, sigma, q)
-    return np.exp(-q * T) * _npdf(d1) / (S * sigma * np.sqrt(T))
+    S, T = np.asarray(S, dtype=float), np.asarray(T, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        Tp = np.maximum(T, _T_FLOOR)
+        d1, _ = _d1_d2(S, K, Tp, r, sigma, q)
+        g = np.exp(-q * Tp) * _npdf(d1) / (S * sigma * np.sqrt(Tp))
+    return np.where(T <= 0, 0.0, g)
 
 
 def bs_vega(S, K, T, r, sigma, q=0.0):
     """dV/dsigma, per 1.00 of vol (not per vol point). Same for calls and puts."""
-    S = np.asarray(S, dtype=float)
-    if T <= 0:
-        return np.zeros_like(S)
-    d1, _ = _d1_d2(S, K, T, r, sigma, q)
-    return S * np.exp(-q * T) * _npdf(d1) * np.sqrt(T)
+    S, T = np.asarray(S, dtype=float), np.asarray(T, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        Tp = np.maximum(T, _T_FLOOR)
+        d1, _ = _d1_d2(S, K, Tp, r, sigma, q)
+        v = S * np.exp(-q * Tp) * _npdf(d1) * np.sqrt(Tp)
+    return np.where(T <= 0, 0.0, v)
 
 
 def bs_theta(S, K, T, r, sigma, q=0.0, cp=1):
     """dV/dt, per year. Negative for a long option: it decays."""
-    S = np.asarray(S, dtype=float)
-    if T <= 0:
-        return np.zeros_like(S)
-    d1, d2 = _d1_d2(S, K, T, r, sigma, q)
-    return (
-        -S * np.exp(-q * T) * _npdf(d1) * sigma / (2 * np.sqrt(T))
-        - cp * r * K * np.exp(-r * T) * ndtr(cp * d2)
-        + cp * q * S * np.exp(-q * T) * ndtr(cp * d1)
-    )
+    S, T = np.asarray(S, dtype=float), np.asarray(T, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        Tp = np.maximum(T, _T_FLOOR)
+        d1, d2 = _d1_d2(S, K, Tp, r, sigma, q)
+        th = (
+            -S * np.exp(-q * Tp) * _npdf(d1) * sigma / (2 * np.sqrt(Tp))
+            - cp * r * K * np.exp(-r * Tp) * ndtr(cp * d2)
+            + cp * q * S * np.exp(-q * Tp) * ndtr(cp * d1)
+        )
+    return np.where(T <= 0, 0.0, th)
 
 
 def implied_vol(price, S, K, T, r, q=0.0, cp=1, lo=1e-6, hi=5.0):

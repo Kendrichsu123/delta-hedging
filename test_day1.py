@@ -101,6 +101,29 @@ def test_black_scholes():
     iv = bs.implied_vol(call, S0, K, T, r, q, cp=1)
     check("implied_vol round-trip", abs(iv - sigma) < 1e-8, f"recovered {iv:.10f}")
 
+    # T must accept arrays, not just scalars. A scalar `if T <= 0` raises on an
+    # array, which blocks pricing a whole path's worth of maturities at once.
+    # This was flagged in review, deferred as YAGNI, and then blocked a Day 4
+    # figure three days later.
+    Ts = np.array([0.25, T, 1e-9, 0.0, -0.01])
+    for name, fn, at_expiry in [
+        ("price", lambda t: bs.bs_price(S0, K, t, r, sigma, q), max(S0 - K, 0.0)),
+        ("delta", lambda t: bs.bs_delta(S0, K, t, r, sigma, q), 1.0 * (S0 > K)),
+        ("gamma", lambda t: bs.bs_gamma(S0, K, t, r, sigma, q), 0.0),
+        ("vega", lambda t: bs.bs_vega(S0, K, t, r, sigma, q), 0.0),
+        ("theta", lambda t: bs.bs_theta(S0, K, t, r, sigma, q), 0.0),
+    ]:
+        vec = fn(Ts)
+        check(f"bs_{name} accepts array T", vec.shape == Ts.shape, str(vec.shape))
+        check(f"bs_{name} array matches scalar", abs(vec[1] - fn(T)) < 1e-12)
+        check(f"bs_{name} finite everywhere", np.all(np.isfinite(vec)), str(vec))
+        check(f"bs_{name} correct at T<=0", abs(vec[3] - at_expiry) < 1e-12
+              and abs(vec[4] - at_expiry) < 1e-12, f"{vec[3]}, {vec[4]}")
+
+    # S and T may vary together, which is the case a path actually needs.
+    g2 = bs.bs_gamma(np.array([95.0, 100.0, 105.0]), K, np.array([0.2, 0.1, 0.0]), r, sigma, q)
+    check("gamma with S and T both arrays", g2.shape == (3,) and g2[2] == 0.0, str(g2))
+
     # The BS PDE must hold. This is the identity the whole P&L derivation
     # rests on, so it is worth asserting directly rather than trusting.
     theta = bs.bs_theta(S0, K, T, r, sigma, q, cp=1)
