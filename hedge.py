@@ -48,6 +48,7 @@ class HedgeResult:
     dollar_gamma_integral: np.ndarray  # (n_paths,) discounted int S^2 Gamma dt
     realized_vol: np.ndarray         # (n_paths,) per-path annualized realized vol
     n_rebalances: int
+    traded_notional: np.ndarray | None = None  # (n_paths,) cumulative $ traded
     params: dict = field(default_factory=dict)
     S: np.ndarray | None = None      # paths, only if keep_paths=True
 
@@ -82,6 +83,7 @@ def simulate_hedge(
     keep_paths=False,
     jump_at=None,
     jump_vol=0.0,
+    cost_bps=0.0,
 ):
     """Sell one option, delta-hedge it N times, return the P&L distribution.
 
@@ -110,6 +112,8 @@ def simulate_hedge(
     cash = np.full(n_paths, premium)
     shares = np.zeros(n_paths)
     dgamma = np.zeros(n_paths)
+    traded = np.zeros(n_paths)   # cumulative notional traded, for cost accounting
+    cost_rate = cost_bps * 1e-4
 
     for k in range(N):
         t = k * dt
@@ -119,7 +123,15 @@ def simulate_hedge(
 
         # Rebalance: trade into the new delta at the current spot.
         target = bs.bs_delta(S_k, K, tau, r, sigma_hedge, q, cp)
-        cash -= (target - shares) * S_k
+        trade = target - shares
+        cash -= trade * S_k
+        # Proportional cost: you cross a spread on every share, in either
+        # direction. Charged on |notional|, so it is always a drain and never
+        # a windfall -- unlike the trade itself, which is a transfer.
+        if cost_rate:
+            notional = np.abs(trade) * S_k
+            traded += notional
+            cash -= cost_rate * notional
         shares = target
 
         # Carry the position across [t, t+dt]: interest on cash, dividends on
@@ -137,6 +149,11 @@ def simulate_hedge(
     # Expiry: liquidate the stock, settle the option we are short.
     S_T = S[:, N]
     cash += shares * S_T
+    if cost_rate:
+        # Liquidating the stock at expiry crosses the spread one final time.
+        final = np.abs(shares) * S_T
+        traded += final
+        cash -= cost_rate * final
     cash -= bs.payoff(S_T, K, cp)
 
     return HedgeResult(
@@ -145,11 +162,12 @@ def simulate_hedge(
         dollar_gamma_integral=dgamma,
         realized_vol=realized_vol(S, T),
         n_rebalances=N,
+        traded_notional=traded,
         params=dict(
             S0=S0, K=K, T=T, r=r, q=q,
             sigma_real=sigma_real, sigma_implied=sigma_implied,
             sigma_hedge=sigma_hedge, N=N, n_paths=n_paths, mu=mu, cp=cp, seed=seed,
-            jump_at=jump_at, jump_vol=jump_vol,
+            jump_at=jump_at, jump_vol=jump_vol, cost_bps=cost_bps,
         ),
         S=S if keep_paths else None,
     )

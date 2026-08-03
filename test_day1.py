@@ -376,6 +376,51 @@ def test_puts_and_carry():
     )
 
 
+def test_transaction_costs():
+    print("\n9. Transaction costs")
+    S0, K, T = 100.0, 100.0, 30 / 365
+
+    # Cost must be exactly cost_rate * traded notional, and must only ever
+    # reduce P&L. A signed cost would be a windfall on one side of the trade.
+    a = simulate_hedge(S0=S0, K=K, T=T, N=128, n_paths=8_000, seed=201, cost_bps=0.0)
+    b = simulate_hedge(S0=S0, K=K, T=T, N=128, n_paths=8_000, seed=201, cost_bps=1.0)
+    drop = a.pnl - b.pnl
+    check(
+        "cost equals rate x traded notional, path by path",
+        np.allclose(drop, b.traded_notional * 1e-4, atol=1e-10),
+        f"max discrepancy {np.abs(drop - b.traded_notional * 1e-4).max():.2e}",
+    )
+    check("cost never increases P&L", np.all(drop >= -1e-12), f"min drop {drop.min():.2e}")
+    check(
+        "cost_bps=0 is identical to no costs",
+        np.array_equal(a.pnl, simulate_hedge(S0=S0, K=K, T=T, N=128, n_paths=8_000,
+                                             seed=201).pnl),
+    )
+
+    # Cost must be linear in the rate: 2bp costs exactly twice 1bp.
+    c = simulate_hedge(S0=S0, K=K, T=T, N=128, n_paths=8_000, seed=201, cost_bps=2.0)
+    check(
+        "cost is linear in cost_bps",
+        np.allclose(a.pnl - c.pnl, 2 * (a.pnl - b.pnl), atol=1e-10),
+    )
+
+    # The REBALANCING leg must scale like sqrt(N). Entry and exit are fixed
+    # and dominate at low N, so they are removed before testing the rate.
+    d0 = float(bs.bs_delta(S0, K, T, 0.0, 0.20))
+    rates = []
+    for N in [128, 512, 2048]:
+        r = simulate_hedge(S0=S0, K=K, T=T, N=N, n_paths=8_000, seed=201,
+                           cost_bps=1.0, keep_paths=True)
+        exit_leg = (np.abs(bs.bs_delta(r.S[:, -2], K, T / N, 0.0, 0.20)) * r.S[:, -1]).mean()
+        rates.append((r.traded_notional.mean() - d0 * S0 - exit_leg) / np.sqrt(N))
+    spread = (max(rates) - min(rates)) / np.mean(rates)
+    check(
+        "rebalancing notional scales like sqrt(N)",
+        spread < 0.05,
+        f"rebal/sqrt(N) = {[round(x, 2) for x in rates]}, spread {spread:.1%}",
+    )
+
+
 def test_scheduled_jump():
     print("\n8. Scheduled jump")
     S0, sd, sj, T, N, n = 100.0, 0.15, 0.03, 30 / 365, 256, 200_000
@@ -446,6 +491,7 @@ if __name__ == "__main__":
     test_dollar_gamma_formula()
     test_puts_and_carry()
     test_scheduled_jump()
+    test_transaction_costs()
     print("\n" + "=" * 70)
     print(f"ALL {len(PASSED)} CHECKS PASSED")
     print("=" * 70)

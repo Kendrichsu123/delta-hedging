@@ -207,6 +207,35 @@ It paid under both readings — and it was a **62/38 proposition, n=1**. The
 defensible claim is "the priced premium exceeded the realized move on this
 occasion," not "selling FOMC events is profitable."
 
+### [Day 7](results/day7.md) — Transaction costs and optimal N
+
+Costs grow like √N while hedging noise falls like 1/√N, so there is a genuine
+interior optimum — the cost-free case had none.
+
+```
+   N |  0bp mean   1bp mean   5bp mean
+   8 |    0.5716     0.5544     0.4857
+ 128 |    0.5711     0.5301     0.3661
+2048 |    0.5724     0.4385    -0.0972   <- a real edge, traded away entirely
+```
+
+**Optimal N under `U = mean − (λ/2)·var`:**
+
+| cost | λ=0.5 | λ=2 | λ=10 |
+|---:|---:|---:|---:|
+| 0.0bp | 512 | 2048 | 2048 |
+| 1.0bp | 64 | 128 | 512 |
+| 5.0bp | 16 | 64 | 256 |
+
+The zero-cost row is the control: with no costs the optimum is always the largest
+N, so **costs are what create an optimum at all**.
+
+**Impact on earlier results:** Day 2 survives almost intact — at daily hedging
+P(loss) goes 1.99% → 2.53% at 1bp and the ~5 vol point threshold is unchanged.
+**Day 6 gets sharper**: with costs, the jump case bottoms at 13.39% (N=128) and
+*rises* to 14.42% (N=2048). Hedging harder against a gap goes from useless to
+actively value-destroying.
+
 ---
 
 ## What is validated, and what is assumed
@@ -265,6 +294,7 @@ python day3_convergence.py   # ~75s
 python day4_path_dependence.py
 python day5_skew.py          # ~3 min
 python day6_jump.py          # ~2 min
+python day7_costs.py         # ~6 min
 ```
 
 New here? Read [`docs/intuition.md`](docs/intuition.md), then work
