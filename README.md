@@ -171,6 +171,42 @@ the stock went and how big the hedging noise was — structurally linked, since 
 per-step noise is proportional to the same `S²Γ` being accumulated.
 `corr(gamma term, squared noise) = +0.331`.
 
+### [Day 6](results/day6.md) — What a scheduled jump does
+
+Adds a gap at a known time of unknown size, **priced correctly** so the edge is
+held constant and only the jump's presence differs.
+
+```
+   N |  no jump: P(loss)  skew  |  with jump: P(loss)  skew
+   8 |            13.32%  +0.02 |              20.25%  -0.80
+  30 |             1.97%  +0.42 |              13.94%  -1.14
+ 128 |             0.01%  +0.37 |              12.39%  -1.48
+2048 |             0.00%  -0.02 |              12.17%  -1.60
+```
+
+**P(loss) stops going to zero.** It plateaus at 12.2% and rebalancing 2,048 times
+instead of 128 buys nothing — you cannot rebalance through a gap. The means are
+identical: fair compensation buys the right *mean*, never a shape you can't hedge.
+
+The same event is worth **13.7 vol points on a 1-day option and 0.03 on a
+2-year**, because a jump adds `σ_J²` regardless of tenor while diffusion adds
+`σ²T`. That predicts vol-surface's measured 5–7 point front-expiry collapse at a
+2–4 day expiry, and says the 0.3 seen at 2 years was *not* the event — the same
+inference, reached from the opposite direction.
+
+**The FOMC trade.** Selling the July 2026 announcement at the measured ±0.95%
+premium, against SPY's actual −0.67%:
+
+| | 0.95% as std | 0.95% as E\|move\| |
+|---|---:|---:|
+| break-even move | ±0.856% | ±1.046% |
+| P&L | +16.3% of premium | +29.2% of premium |
+| ex-ante P(profit) | 0.631 | 0.620 |
+
+It paid under both readings — and it was a **62/38 proposition, n=1**. The
+defensible claim is "the priced premium exceeded the realized move on this
+occasion," not "selling FOMC events is profitable."
+
 ---
 
 ## What is validated, and what is assumed
@@ -190,8 +226,9 @@ per-step noise is proportional to the same `S²Γ` being accumulated.
 
 1. **Realized vol is a known constant.** Tested in isolation — relaxing it to a
    3-point forecast error flips the skew sign and takes P(loss) 2.0% → 8.9%.
-2. **The stock moves continuously, with no gaps.** Not yet tested. A delta hedge
-   is helpless against a jump by construction.
+2. **The stock moves continuously, with no gaps.** Tested in Day 6 — a scheduled
+   jump puts a floor of 12.2% under P(loss) that no amount of rebalancing lifts,
+   and drives the skew to −1.60.
 
 **Never touched real market data.** Every path here is simulated GBM. The claim
 that real short-vol books are negatively skewed is imported from outside this
@@ -227,6 +264,7 @@ python day2_distribution.py  # ~75s
 python day3_convergence.py   # ~75s
 python day4_path_dependence.py
 python day5_skew.py          # ~3 min
+python day6_jump.py          # ~2 min
 ```
 
 New here? Read [`docs/intuition.md`](docs/intuition.md), then work

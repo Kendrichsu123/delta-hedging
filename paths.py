@@ -23,8 +23,12 @@ are actually studying.
 import numpy as np
 
 
-def gbm_paths(S0, mu, sigma, T, N, n_paths, q=0.0, seed=None, rng=None):
+def gbm_paths(S0, mu, sigma, T, N, n_paths, q=0.0, seed=None, rng=None,
+              jump_at=None, jump_vol=0.0):
     """Simulate GBM paths on a uniform grid of N steps over [0, T].
+
+    Optionally inserts a SCHEDULED jump -- a gap at a known time of unknown
+    size, which is what an earnings date or an FOMC announcement is.
 
     Parameters
     ----------
@@ -45,6 +49,26 @@ def gbm_paths(S0, mu, sigma, T, N, n_paths, q=0.0, seed=None, rng=None):
         Continuous dividend yield. The price process drifts at (mu - q); the
         yield itself is paid to the holder as cash and is credited separately
         by the hedging engine.
+    jump_at : float or None
+        Fraction of T at which a scheduled jump occurs, e.g. 0.5 for halfway.
+        None means no jump. The jump lands INSIDE one rebalancing interval, so
+        the hedger carries a pre-jump delta across it and cannot trade during
+        it. That is the whole point: a delta hedge is defenceless against a gap
+        by construction, and no amount of rebalancing changes that.
+    jump_vol : float
+        Standard deviation of the jump in LOG terms. A jump_vol of 0.01 means
+        the announcement moves the stock by roughly 1%, with the sign unknown.
+
+        The jump is drift-compensated by -jump_vol^2/2 so that E[S_T] is
+        unchanged: adding a zero-mean shock to the LOG would otherwise raise
+        the level, since E[exp(J)] = exp(jump_vol^2/2) > 1. Without the
+        compensation the jump would smuggle in a positive drift and the
+        no-jump/jump comparison would confound two effects.
+
+        Total variance over the option's life becomes sigma^2*T + jump_vol^2,
+        so a fair implied vol for a jumpy stock is
+        sqrt(sigma^2 + jump_vol^2/T) -- which explodes as T shrinks. That is
+        why event premium concentrates in short expiries.
 
     Returns
     -------
@@ -69,6 +93,14 @@ def gbm_paths(S0, mu, sigma, T, N, n_paths, q=0.0, seed=None, rng=None):
     diffusion = sigma * np.sqrt(dt) * Z
 
     log_increments = drift + diffusion
+
+    if jump_at is not None and jump_vol > 0:
+        # Land the jump inside step `k`, so it happens between rebalance k and
+        # rebalance k+1 and the hedger is stuck with the delta they already set.
+        k = int(np.clip(round(jump_at * N), 0, N - 1))
+        J = rng.standard_normal(n_paths) * jump_vol - 0.5 * jump_vol**2
+        log_increments[:, k] += J
+
     log_S = np.log(S0) + np.cumsum(log_increments, axis=1)
 
     S = np.empty((n_paths, N + 1))

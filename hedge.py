@@ -80,11 +80,17 @@ def simulate_hedge(
     cp=1,
     seed=0,
     keep_paths=False,
+    jump_at=None,
+    jump_vol=0.0,
 ):
     """Sell one option, delta-hedge it N times, return the P&L distribution.
 
     sigma_hedge defaults to sigma_implied (the realistic case).
     mu defaults to r (the risk-neutral measure).
+
+    jump_at / jump_vol insert a scheduled gap (see paths.gbm_paths). Note that
+    sigma_real then describes only the DIFFUSIVE part; total realized variance
+    is sigma_real^2 * T + jump_vol^2.
 
     Sign convention: we are SHORT the option and LONG the hedge. A positive
     P&L means the trade made money.
@@ -95,7 +101,8 @@ def simulate_hedge(
         mu = r
 
     dt = T / N
-    S = gbm_paths(S0, mu, sigma_real, T, N, n_paths, q=q, seed=seed)
+    S = gbm_paths(S0, mu, sigma_real, T, N, n_paths, q=q, seed=seed,
+                  jump_at=jump_at, jump_vol=jump_vol)
 
     # Premium received for the option we sold, priced at the implied vol.
     premium = float(bs.bs_price(S0, K, T, r, sigma_implied, q, cp))
@@ -142,6 +149,7 @@ def simulate_hedge(
             S0=S0, K=K, T=T, r=r, q=q,
             sigma_real=sigma_real, sigma_implied=sigma_implied,
             sigma_hedge=sigma_hedge, N=N, n_paths=n_paths, mu=mu, cp=cp, seed=seed,
+            jump_at=jump_at, jump_vol=jump_vol,
         ),
         S=S if keep_paths else None,
     )

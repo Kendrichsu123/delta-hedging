@@ -376,6 +376,64 @@ def test_puts_and_carry():
     )
 
 
+def test_scheduled_jump():
+    print("\n8. Scheduled jump")
+    S0, sd, sj, T, N, n = 100.0, 0.15, 0.03, 30 / 365, 256, 200_000
+
+    S = gbm_paths(S0, 0.0, sd, T, N, n, seed=5, jump_at=0.5, jump_vol=sj)
+    ST = S[:, -1]
+
+    # The jump is drift-compensated, so adding it must not move E[S_T]. Without
+    # the -jump_vol^2/2 term a zero-mean shock to the LOG raises the level, and
+    # every jump-vs-no-jump comparison would be confounded by a drift change.
+    se = ST.std(ddof=1) / np.sqrt(n)
+    check(
+        "jump does not change E[S_T]",
+        abs(ST.mean() - S0) < 4 * se,
+        f"{ST.mean():.4f} vs {S0} (4*se={4*se:.4f})",
+    )
+
+    # Total realized variance must be diffusion + jump, exactly.
+    log_var = (np.diff(np.log(S), axis=1) ** 2).sum(axis=1).mean()
+    expected = sd**2 * T + sj**2
+    check(
+        "total variance == sigma^2*T + jump_vol^2",
+        abs(log_var - expected) / expected < 0.01,
+        f"{log_var:.6f} vs {expected:.6f}",
+    )
+
+    # jump_vol=0 must reproduce the no-jump path exactly, or the jump branch is
+    # silently perturbing the baseline every comparison is measured against.
+    a = gbm_paths(S0, 0.0, sd, T, 64, 1000, seed=9)
+    b = gbm_paths(S0, 0.0, sd, T, 64, 1000, seed=9, jump_at=0.5, jump_vol=0.0)
+    check("jump_vol=0 is identical to no jump", np.array_equal(a, b))
+
+    # The jump must land in exactly one step, and that step only.
+    S2 = gbm_paths(S0, 0.0, 1e-9, T, 10, 20_000, seed=3, jump_at=0.5, jump_vol=0.05)
+    step_std = np.diff(np.log(S2), axis=1).std(axis=0)
+    jumpy = np.where(step_std > 0.01)[0]
+    check(
+        "jump occupies exactly one step",
+        len(jumpy) == 1 and jumpy[0] == 5,
+        f"steps with large moves: {jumpy}",
+    )
+
+    # A jump priced into implied vol should restore a fair trade: sell at the
+    # jump-inclusive fair vol and the mean P&L must be ~0.
+    fair = np.sqrt(sd**2 + sj**2 / T)
+    res = simulate_hedge(S0=S0, K=S0, T=T, r=0.0, sigma_real=sd,
+                         sigma_implied=fair, N=512, n_paths=40_000, seed=7,
+                         jump_at=0.5, jump_vol=sj)
+    s = res.summary()
+    check(
+        "selling at jump-inclusive fair vol is zero-edge",
+        abs(s["mean"]) < 4 * s["stderr"],
+        f"mean={s['mean']:+.5f}, 4*se={4*s['stderr']:.5f}",
+    )
+    print(f"     fair vol with jump = {fair:.4f}; mean P&L {s['mean']:+.5f} "
+          f"(se {s['stderr']:.5f}), skew {s['skew']:+.3f}")
+
+
 if __name__ == "__main__":
     print("=" * 70)
     print("DAY 1 VALIDATION")
@@ -387,6 +445,7 @@ if __name__ == "__main__":
     test_hedge_at_implied()
     test_dollar_gamma_formula()
     test_puts_and_carry()
+    test_scheduled_jump()
     print("\n" + "=" * 70)
     print(f"ALL {len(PASSED)} CHECKS PASSED")
     print("=" * 70)
