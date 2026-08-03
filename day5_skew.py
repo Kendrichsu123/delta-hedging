@@ -166,24 +166,65 @@ def decompose(n_paths=40_000, seed=73):
 # ---------------------------------------------------------------------------
 
 
-def folklore(n_paths=40_000, seed=75):
+def min_is_not_a_statistic(n_paths=400_000, seed=91):
+    """The sample minimum is a property of your sample size, not of the
+    distribution. Worth demonstrating because 'worst case in the backtest' is
+    quoted as a risk measure constantly, and it is not one."""
     print("\n" + "=" * 76)
-    print("3. THIS IS NOT THE SKEW THE FOLKLORE IS ABOUT")
+    print("3. AN ASIDE: THE SAMPLE MINIMUM IS NOT A RISK MEASURE")
+    print("=" * 76)
+    p = simulate_hedge(N=30, n_paths=n_paths, seed=seed, **BASE).pnl
+    print(f"{'paths drawn':>13} {'worst':>10} {'p0.1':>10} {'p1':>10}")
+    for n in [1_000, 10_000, 40_000, 100_000, 400_000]:
+        sub = p[:n]
+        print(f"{n:13,} {sub.min():10.4f} {np.percentile(sub, 0.1):10.4f} "
+              f"{np.percentile(sub, 1):10.4f}")
+    print("\n  The minimum keeps drifting down as paths are added; the percentiles")
+    print("  barely move. Draw more paths, find a worse path -- always. This is the")
+    print("  same reason 'worst drawdown in backtest' gets worse the longer you")
+    print("  backtest. Quote percentiles, which converge.")
+
+
+def folklore(n_paths=60_000, seed=75):
+    print("\n" + "=" * 76)
+    print("4. THIS IS NOT THE SKEW THE FOLKLORE IS ABOUT")
     print("=" * 76)
     r = simulate_hedge(N=30, n_paths=n_paths, seed=seed, **BASE)
     p = r.pnl
     print(f"  At daily hedging (N=30): skew = {skew(p):+.4f}, CI {np.round(boot_ci(p, skew), 4)}")
-    print(f"  worst path {p.min():+.4f}, best {p.max():+.4f}, mean {p.mean():+.4f}")
+    print(f"  P(loss) {(p < 0).mean():.4f}, mean {p.mean():+.4f}")
     print("\n  Real short-vol books are NEGATIVELY skewed: many small gains, rare")
     print("  large losses. This model says positive. The model is not wrong -- it is")
     print("  answering a question with two assumptions baked in that remove exactly")
     print("  the thing the folklore is about:")
-    print("\n    1. sigma_real is a KNOWN CONSTANT. Real realized vol is random and")
-    print("       fat-tailed. Day 2 section 3 already showed relaxing this fattens")
-    print("       the left tail: P(loss) went 2.0% -> 11.4% at a 3-point forecast error.")
+    print("\n    1. sigma_real is a KNOWN CONSTANT. Real realized vol is random.")
     print("    2. The stock moves CONTINUOUSLY. No gaps. A delta hedge is helpless")
     print("       against a jump, by construction -- you cannot rebalance through it.")
-    print("\n  Both assumptions flatter the seller. Day 6 removes the second one.")
+    print("\n  Test assumption 1 in isolation. Keep continuous paths, but draw the")
+    print("  realized vol per trade from N(15%, s) instead of fixing it at 15%:\n")
+    rng = np.random.default_rng(93)
+    print(f"{'forecast error s':>17} {'mean':>9} {'std':>8} {'skew':>9} {'P(loss)':>9}")
+    for s in [0.0, 0.01, 0.02, 0.03, 0.05]:
+        if s == 0:
+            q = simulate_hedge(sigma_real=SIGMA_R, N=30, n_paths=n_paths, seed=1,
+                               S0=100.0, K=100.0, T=30 / 365, r=0.0, sigma_implied=SIGMA_I)
+            q = q.pnl
+        else:
+            srs = np.clip(rng.normal(SIGMA_R, s, 300), 0.02, None)
+            q = np.concatenate([
+                simulate_hedge(sigma_real=float(v), N=30, n_paths=n_paths // 300, seed=700 + i,
+                               S0=100.0, K=100.0, T=30 / 365, r=0.0, sigma_implied=SIGMA_I).pnl
+                for i, v in enumerate(srs)
+            ])
+        print(f"{s:17.3f} {q.mean():+9.4f} {q.std():8.4f} {skew(q):+9.4f} {(q < 0).mean():9.4f}")
+
+    print("\n  Assumption 1 ALONE flips the sign. The skew crosses zero at about a")
+    print("  3-point forecast error and reaches -0.12 at 5 points, while the mean")
+    print("  barely moves. Reason: P&L = 1/2*(si^2 - sr^2)*int S^2 Gamma dt, and when")
+    print("  sigma_r is random it occasionally lands ABOVE sigma_i. That bracket goes")
+    print("  negative and the trade genuinely loses -- a left tail the fixed-vol")
+    print("  model cannot produce at all.")
+    print("\n  So one of the two doors is now quantified. Day 6 opens the other.")
 
 
 # ---------------------------------------------------------------------------
@@ -255,6 +296,7 @@ if __name__ == "__main__":
     os.makedirs("figures", exist_ok=True)
     rows = skew_sweep()
     terms = decompose()
+    min_is_not_a_statistic()
     folklore()
     print("\n" + "=" * 76)
     print("FIGURES")

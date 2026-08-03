@@ -121,13 +121,47 @@ Real short-vol books are negatively skewed. **The model is not wrong — it is
 answering a question with two assumptions that remove exactly the thing the
 folklore is about:**
 
-1. **σᵣ is a known constant.** Real realized vol is random and fat-tailed. Day 2
-   §3 already showed relaxing this fattens the left tail: P(loss) went 2.0% →
-   11.4% at a 3-point forecast error.
+1. **σᵣ is a known constant.** Real realized vol is random.
 2. **The stock moves continuously.** No gaps. A delta hedge is helpless against a
    jump *by construction* — you cannot rebalance through it.
 
-Both assumptions flatter the seller. **Day 6 removes the second one.**
+### Assumption 1, tested in isolation
+
+Keep continuous paths; draw realized vol per trade from N(15%, s) instead of
+fixing it:
+
+| forecast error s | mean | std | skew | P(loss) |
+|---:|---:|---:|---:|---:|
+| 0.000 | +0.5731 | 0.3254 | **+0.4037** | 0.0196 |
+| 0.010 | +0.5652 | 0.3458 | +0.3352 | 0.0321 |
+| 0.020 | +0.5900 | 0.4028 | +0.1474 | 0.0574 |
+| 0.030 | +0.6057 | 0.4741 | **−0.0053** | 0.0885 |
+| 0.050 | +0.6046 | 0.6459 | **−0.1243** | 0.1613 |
+
+**Assumption 1 alone flips the sign.** The skew crosses zero at roughly a
+3-point forecast error and reaches −0.12 at 5 points — while the **mean barely
+moves** (+0.573 → +0.605).
+
+Why: `P&L = ½(σᵢ² − σᵣ²)·∫S²Γdt`. When σᵣ is random it occasionally lands
+*above* σᵢ, and that bracket goes negative — a genuine loss, not a rounding
+error. Those rare bad draws create a left tail the fixed-σᵣ model cannot produce
+at all.
+
+One of the two doors is now quantified. **Day 6 opens the other.**
+
+### An aside: the sample minimum is not a risk measure
+
+| paths drawn | worst | p0.1 | p1 |
+|---:|---:|---:|---:|
+| 1,000 | −0.1592 | −0.1582 | −0.0490 |
+| 10,000 | −1.1629 | −0.2509 | −0.0636 |
+| 100,000 | −1.1629 | −0.2704 | −0.0660 |
+| 400,000 | −1.3955 | −0.3057 | −0.0669 |
+
+The minimum drifts down as paths are added (−0.16 → −1.40) while p1 barely moves
+(−0.049 → −0.067). **The sample min is a property of your sample size, not of the
+distribution** — the same reason "worst drawdown in backtest" always gets worse
+the longer you backtest. Quote percentiles.
 
 This is the value of a negative result: the model's disagreement with reality
 localizes what reality has that the model doesn't. The +0.40 isn't a finding about
