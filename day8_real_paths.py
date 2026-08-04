@@ -19,19 +19,24 @@ not a route to them.
 
 THE DATA
 
-data/aapl_daily.csv -- 506 adjusted daily closes, Feb 2015 to Feb 2017. Real, and
-small: 21-day windows give only about 24 non-overlapping months. Any statistic
-here has an effective sample size in the tens, not the thousands, and the file
-says so everywhere rather than quoting confident numbers.
+Set CSV_PATH / CLOSE_COL to any CSV with a date column and a close column. The
+repo ships two:
 
-To point this at your own data, supply any CSV with a date column and a close
-column and pass the column name. SPY over a decade would be strictly better and
-is a one-line change.
+  data/spy_daily.csv   ~2500 daily closes, Aug 2016 to Aug 2026 (the default).
+                       An index, ~119 independent months, and the same
+                       underlying the vol-surface project measured.
+  data/aapl_daily.csv  506 adjusted closes, Feb 2015 to Feb 2017. A single name
+                       with earnings gaps, kept because the contrast is
+                       informative -- see results/day8.md.
+
+Even the SPY sample is ~119 independent months, so effective sample sizes here
+are in the hundreds at best. The writeup leads with that rather than burying it.
 
 Run:  python day8_real_paths.py
 """
 
 import csv
+import os
 
 import numpy as np
 
@@ -45,7 +50,10 @@ from paths import gbm_paths
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e5e5e2"
 
-CSV_PATH, CLOSE_COL = "data/aapl_daily.csv", "AAPL.Adjusted"
+# SPY is the intended series; AAPL ships with the repo as a fallback so a fresh
+# clone runs without a network call. Run `python data/fetch_prices.py` to get SPY.
+CSV_PATH, CLOSE_COL = "data/spy_daily.csv", "Close"
+FALLBACK_PATH, FALLBACK_COL = "data/aapl_daily.csv", "AAPL.Adjusted"
 W = 21                 # trading days in the option's life (~30 calendar days)
 T = 30 / 365
 EDGE = 0.05            # vol points sold above the full-sample realized vol
@@ -71,8 +79,20 @@ def skew(x):
 
 
 def load_closes(path=CSV_PATH, col=CLOSE_COL):
+    """Load a daily close series, falling back to the shipped AAPL file.
+
+    Price data is not redistributed with the repo beyond the AAPL sample, which
+    comes from a public examples dataset. SPY has to be fetched, so a fresh
+    clone would otherwise fail on a missing file rather than telling you why.
+    """
+    if not os.path.exists(path):
+        print(f"NOTE: {path} not found -- falling back to {FALLBACK_PATH}.")
+        print("      Run `python data/fetch_prices.py` to get SPY, which is the")
+        print("      series the writeup in results/day8.md reports.\n")
+        path, col = FALLBACK_PATH, FALLBACK_COL
     rows = list(csv.DictReader(open(path)))
-    return np.array([float(r[col]) for r in rows]), rows[0]["Date"], rows[-1]["Date"]
+    return (np.array([float(r[col]) for r in rows]),
+            rows[0]["Date"], rows[-1]["Date"], path)
 
 
 # ---------------------------------------------------------------------------
@@ -125,8 +145,8 @@ def vol_dispersion(lr, sig, seed=0):
     print(f"\n  So Day 2's HARSHEST assumed scenario (s = 5 points) was still")
     print(f"  optimistic. The month-to-month spread of realized vol alone is")
     print(f"  {rv_real.std()*100:.1f} points here, before any forecast error is added on top.")
-    print("  Caveat: these windows overlap heavily, which inflates the apparent")
-    print("  sample; and AAPL is a single name, more volatile than an index.")
+    print(f"  Caveat: these windows overlap heavily -- {len(wins)} of them carry only")
+    print(f"  about {len(lr)//W} months of independent information.")
     return rv_real, rv_gbm
 
 
@@ -203,9 +223,9 @@ def hedge_comparison(lr, sig, seed=1):
 
     print(f"\n  The overlapping-window row has n={len(overlap)} but only about")
     print(f"  {len(lr)//W} INDEPENDENT months in it. Treat it as an illustration.")
-    print("  The block bootstrap has many paths but they are all resampled from")
-    print("  the same two years, so it inherits that period's regime -- it widens")
-    print("  the sample without adding information.")
+    print(f"  The block bootstrap has many paths but all are resampled from the same")
+    print(f"  {len(lr)/252:.0f} years, so it inherits that period's regimes -- it widens the")
+    print("  sample without adding information.")
     return out
 
 
@@ -250,9 +270,9 @@ if __name__ == "__main__":
     import os
 
     os.makedirs("figures", exist_ok=True)
-    px, d0, d1 = load_closes()
+    px, d0, d1, used = load_closes()
     lr = np.diff(np.log(px))
-    print(f"data: {CSV_PATH}, {len(px)} closes, {d0} -> {d1}\n")
+    print(f"data: {used}, {len(px)} closes, {d0} -> {d1}\n")
     sig = characterise(lr)
     rv_real, rv_gbm = vol_dispersion(lr, sig)
     out = hedge_comparison(lr, sig)

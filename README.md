@@ -238,29 +238,38 @@ actively value-destroying.
 
 ### [Day 8](results/day8.md) — Real price paths
 
-The first day that touches market data. 506 real daily closes, ~24 independent
-months — small enough that the limitation leads rather than follows.
+The first day that touches market data. **SPY, 2,513 daily closes, Aug 2016 –
+Aug 2026** (~119 independent months).
 
-Selling 5 vol points above realized, hedged daily, **GBM matched to the same
-volatility** so only the return *shape* differs:
+Selling 5 vol points above the mean 21-day realized vol, hedged daily, with GBM
+matched to that same reference so only the return *shape* differs:
 
 ```
-                      P(loss)     skew        p5
-real returns           23.71%   -0.529   -0.9198
-GBM (control)          13.16%   +0.233   -0.2577
+                 mean   P(loss)     skew        p5
+real returns   0.3144    21.81%   -4.165   -1.3228
+GBM (control)  0.5751     3.69%   +0.321   +0.0385
 ```
 
-**The skew flips sign on real data.** Days 5 and 6 predicted this by *adding
-features to the model*; Day 8 confirms it by *removing the model*. P(loss) nearly
-doubles and the 5th percentile is 3.6× worse, at identical volatility.
+**GBM's 5th percentile is positive** — the model says 95% of months make money.
+Reality says 22% lose, and the 5th percentile is −1.32, more than twice the
+average profit. At identical edge the real mean is **45% lower**: fat tails cost
+more in gamma on the violent days than the calm days save in theta.
+
+**The result strengthens on an index.** AAPL gave skew −0.67; SPY gives **−4.17**.
+That matters because three of AAPL's four 4-sigma days were earnings — scheduled
+jumps, Day 6's setup occurring naturally. SPY has no earnings, twenty 4-sigma
+days, kurtosis 18.3, and a six times stronger effect. **So the skew flip is fat
+tails and volatility clustering, not scheduled events** — a claim AAPL alone
+could not support.
 
 It also prices a Day 2 assumption. Day 2 swept a forecast error of 0–5 vol points;
-real 21-day realized vol has a standard deviation of **8.0 vol points** against
-GBM's 3.7. **Day 2's harshest assumed scenario was still optimistic.**
+real 21-day realized vol has a standard deviation of **10.0 points** against GBM's
+2.7, spanning 5.9% to 28.6% between the 5th and 95th percentile. **Day 2's
+harshest assumed scenario was optimistic by half.**
 
-What it cannot do is attribute. Fat tails (kurtosis 6.1 vs 3.0), vol clustering,
-and earnings gaps all arrive together — which is why Day 6's controlled
-single-feature experiment came first and this comes last.
+What it still cannot do is attribute — fat tails, clustering and gaps arrive
+together, which is why Day 6's controlled experiment came first and this comes
+last.
 
 ---
 
@@ -286,10 +295,11 @@ single-feature experiment came first and this comes last.
    and drives the skew to −1.60.
 
 **Days 1–7 never touched real market data** — every path there is simulated GBM.
-Day 8 is the first to use a real price series, and it confirms the skew sign flip
-independently (−0.53 on real returns vs +0.23 on volatility-matched GBM). Its
-sample is ~24 independent months, so it establishes the direction and not the
-magnitude.
+Day 8 uses SPY over a decade and confirms the skew sign flip independently:
+**−4.17 on real returns against +0.32 on volatility-matched GBM**, with P(loss)
+5.9× higher at identical edge. Its sample is ~119 independent months spanning one
+particular decade, so it establishes direction and rough magnitude, not a
+stationary constant.
 
 ---
 
