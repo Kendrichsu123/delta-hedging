@@ -236,6 +236,32 @@ P(loss) goes 1.99% → 2.53% at 1bp and the ~5 vol point threshold is unchanged.
 *rises* to 14.42% (N=2048). Hedging harder against a gap goes from useless to
 actively value-destroying.
 
+### [Day 8](results/day8.md) — Real price paths
+
+The first day that touches market data. 506 real daily closes, ~24 independent
+months — small enough that the limitation leads rather than follows.
+
+Selling 5 vol points above realized, hedged daily, **GBM matched to the same
+volatility** so only the return *shape* differs:
+
+```
+                      P(loss)     skew        p5
+real returns           23.71%   -0.529   -0.9198
+GBM (control)          13.16%   +0.233   -0.2577
+```
+
+**The skew flips sign on real data.** Days 5 and 6 predicted this by *adding
+features to the model*; Day 8 confirms it by *removing the model*. P(loss) nearly
+doubles and the 5th percentile is 3.6× worse, at identical volatility.
+
+It also prices a Day 2 assumption. Day 2 swept a forecast error of 0–5 vol points;
+real 21-day realized vol has a standard deviation of **8.0 vol points** against
+GBM's 3.7. **Day 2's harshest assumed scenario was still optimistic.**
+
+What it cannot do is attribute. Fat tails (kurtosis 6.1 vs 3.0), vol clustering,
+and earnings gaps all arrive together — which is why Day 6's controlled
+single-feature experiment came first and this comes last.
+
 ---
 
 ## What is validated, and what is assumed
@@ -259,9 +285,11 @@ actively value-destroying.
    jump puts a floor of 12.2% under P(loss) that no amount of rebalancing lifts,
    and drives the skew to −1.60.
 
-**Never touched real market data.** Every path here is simulated GBM. The claim
-that real short-vol books are negatively skewed is imported from outside this
-project, not measured in it.
+**Days 1–7 never touched real market data** — every path there is simulated GBM.
+Day 8 is the first to use a real price series, and it confirms the skew sign flip
+independently (−0.53 on real returns vs +0.23 on volatility-matched GBM). Its
+sample is ~24 independent months, so it establishes the direction and not the
+magnitude.
 
 ---
 
@@ -280,6 +308,7 @@ day5_skew.py              skew vs N with bootstrap, third-moment decomposition
 docs/intuition.md         the whole trade in arithmetic, no calculus
 docs/exercises.md         predict-then-run exercises with an answer key
 docs/corrections.md       every claim that was revised, and what triggered it
+docs/story.md             the narrative: how each answer created the next question
 results/                  per-day writeups with figures
 figures/                  generated charts
 ```
@@ -295,6 +324,7 @@ python day4_path_dependence.py
 python day5_skew.py          # ~3 min
 python day6_jump.py          # ~2 min
 python day7_costs.py         # ~6 min
+python day8_real_paths.py    # ~30s
 ```
 
 New here? Read [`docs/intuition.md`](docs/intuition.md), then work

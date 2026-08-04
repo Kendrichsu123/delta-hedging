@@ -102,59 +102,12 @@ def simulate_hedge(
     if mu is None:
         mu = r
 
-    dt = T / N
     S = gbm_paths(S0, mu, sigma_real, T, N, n_paths, q=q, seed=seed,
                   jump_at=jump_at, jump_vol=jump_vol)
 
-    # Premium received for the option we sold, priced at the implied vol.
-    premium = float(bs.bs_price(S0, K, T, r, sigma_implied, q, cp))
-
-    cash = np.full(n_paths, premium)
-    shares = np.zeros(n_paths)
-    dgamma = np.zeros(n_paths)
-    traded = np.zeros(n_paths)   # cumulative notional traded, for cost accounting
-    cost_rate = cost_bps * 1e-4
-
-    for k in range(N):
-        t = k * dt
-        tau = T - t  # time remaining; strictly positive for k = 0 .. N-1
-
-        S_k = S[:, k]
-
-        # Rebalance: trade into the new delta at the current spot.
-        target = bs.bs_delta(S_k, K, tau, r, sigma_hedge, q, cp)
-        trade = target - shares
-        cash -= trade * S_k
-        # Proportional cost: you cross a spread on every share, in either
-        # direction. Charged on |notional|, so it is always a drain and never
-        # a windfall -- unlike the trade itself, which is a transfer.
-        if cost_rate:
-            notional = np.abs(trade) * S_k
-            traded += notional
-            cash -= cost_rate * notional
-        shares = target
-
-        # Carry the position across [t, t+dt]: interest on cash, dividends on
-        # stock. Dividends use the spot at the start of the step, an O(dt)
-        # approximation that is exactly zero when q = 0 (the default for all
-        # core experiments).
-        cash *= np.exp(r * dt)
-        cash += shares * S_k * q * dt
-
-        # Accumulate the dollar-gamma integral that the theory predicts the
-        # P&L is proportional to. Gamma is taken at the IMPLIED vol, which is
-        # what the P&L formula calls for, and discounted to present value.
-        dgamma += np.exp(-r * t) * bs.dollar_gamma(S_k, K, tau, r, sigma_implied, q) * dt
-
-    # Expiry: liquidate the stock, settle the option we are short.
-    S_T = S[:, N]
-    cash += shares * S_T
-    if cost_rate:
-        # Liquidating the stock at expiry crosses the spread one final time.
-        final = np.abs(shares) * S_T
-        traded += final
-        cash -= cost_rate * final
-    cash -= bs.payoff(S_T, K, cp)
+    inner = hedge_paths(S, K, T, r=r, q=q, sigma_implied=sigma_implied,
+                        sigma_hedge=sigma_hedge, cp=cp, cost_bps=cost_bps)
+    cash, premium, dgamma, traded = inner
 
     return HedgeResult(
         pnl=cash,
@@ -171,6 +124,57 @@ def simulate_hedge(
         ),
         S=S if keep_paths else None,
     )
+
+
+def hedge_paths(S, K, T, r=0.0, q=0.0, sigma_implied=0.20, sigma_hedge=None,
+                cp=1, cost_bps=0.0):
+    """Delta-hedge a GIVEN array of paths. Returns (cash, premium, dgamma, traded).
+
+    S has shape (n_paths, N+1) and may come from anywhere -- a GBM simulator, a
+    block bootstrap of historical returns, or a set of real overlapping windows.
+    Separating this from path generation is what lets Day 8 run the identical
+    accounting on real prices, so any difference in the results is attributable
+    to the paths and not to a second implementation of the hedge.
+    """
+    if sigma_hedge is None:
+        sigma_hedge = sigma_implied
+    n_paths, N = S.shape[0], S.shape[1] - 1
+    dt = T / N
+    S0 = S[0, 0]
+    cost_rate = cost_bps * 1e-4
+
+    premium = float(bs.bs_price(S0, K, T, r, sigma_implied, q, cp))
+    cash = np.full(n_paths, premium)
+    shares = np.zeros(n_paths)
+    dgamma = np.zeros(n_paths)
+    traded = np.zeros(n_paths)
+
+    for k in range(N):
+        t = k * dt
+        tau = T - t
+        S_k = S[:, k]
+
+        target = bs.bs_delta(S_k, K, tau, r, sigma_hedge, q, cp)
+        trade = target - shares
+        cash -= trade * S_k
+        if cost_rate:
+            notional = np.abs(trade) * S_k
+            traded += notional
+            cash -= cost_rate * notional
+        shares = target
+
+        cash *= np.exp(r * dt)
+        cash += shares * S_k * q * dt
+        dgamma += np.exp(-r * t) * bs.dollar_gamma(S_k, K, tau, r, sigma_implied, q) * dt
+
+    S_T = S[:, N]
+    cash += shares * S_T
+    if cost_rate:
+        final = np.abs(shares) * S_T
+        traded += final
+        cash -= cost_rate * final
+    cash -= bs.payoff(S_T, K, cp)
+    return cash, premium, dgamma, traded
 
 
 # ---------------------------------------------------------------------------
