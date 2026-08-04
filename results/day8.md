@@ -123,21 +123,44 @@ only confirms the direction.
 
 ---
 
-## Running it on your own data
+## Why AAPL, and why SPY would be better
 
-The engine is separated from the path generator (`hedge_paths` in `hedge.py`
-takes any `(n_paths, N+1)` array), so pointing this at a better series is a
-two-line change:
+**SPY is the right series for this project and AAPL is a substitute.** Three
+reasons SPY wins:
+
+1. **It is an index.** AAPL's return distribution is dominated by one company's
+   news — eight earnings gaps sit inside this two-year sample. SPY's tails come
+   from macro events, which is the risk a vol seller on an index actually faces.
+2. **History.** A decade of SPY is ~2,500 days, about **120 independent months**
+   against AAPL's 24. That is the difference between "the direction is negative"
+   and "the magnitude is X."
+3. **It matches vol-surface.** That project measured the SPY surface. Using SPY
+   here would make the two repos describe the same instrument, and Day 6's FOMC
+   analysis is already SPY-based.
+
+**Why the AAPL file is what shipped:** the environment this was built in blocks
+market-data hosts at the proxy — stooq returns 403, Yahoo is unreachable, and
+five public dataset repositories carry only monthly index data. AAPL from a
+public GitHub dataset was the only real *daily* equity series obtainable.
+
+**Fixing it takes one command**, because the engine was separated from the path
+generator (`hedge_paths` in `hedge.py` accepts any `(n_paths, N+1)` array):
+
+```bash
+python data/fetch_prices.py            # SPY, 10 years -> data/spy_daily.csv
+```
+
+then in `day8_real_paths.py`:
 
 ```python
 CSV_PATH, CLOSE_COL = "data/spy_daily.csv", "Close"
 ```
 
-**SPY over a decade would be strictly better** — 2,500 days gives ~120 independent
-months instead of 24, an index rather than a single name, and it would connect
-directly to the vol-surface work. The market-data hosts were unreachable from the
-environment this was built in; the AAPL file came from a public GitHub dataset.
-If you fetch SPY locally, everything here reruns unchanged.
+Nothing else changes. **Expect the numbers to move**: SPY realizes roughly 15–18%
+against AAPL's 24%, has fewer idiosyncratic gaps, and with 120 independent months
+the vol-dispersion figure in §2 becomes a measurement rather than an
+illustration. The *direction* of the skew result should survive — that is the
+prediction to check.
 
 ---
 
