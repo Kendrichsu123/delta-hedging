@@ -70,16 +70,18 @@ That is the whole thesis, in arithmetic. See [`docs/intuition.md`](docs/intuitio
 
 Each day answers one decision. Full writeups in [`results/`](results/).
 
-### [Day 1](test_day1.py) — Can any number this produces be trusted?
+### [Day 1](results/day1.md) — Can any number this produces be trusted?
 
 56 checks against closed forms and arbitrage identities before any analysis.
 The headline test: sell at exactly the vol the stock realizes, and P&L must
 collapse to zero.
 
-Three deliberately introduced bugs — a sign flip, a look-ahead, a missing
-settlement — all returned ≈ +2.28 (the option premium) against a required 0.000,
-and **all three produced smooth, plausible histograms.** That is the argument for
-validating against closed forms rather than eyeballing distributions.
+Three deliberately introduced bugs were run against it. The sign flip is absurd
+on sight — mean +102.04 on a $2.29 premium. **The other two are not.** A
+look-ahead returned +2.2732 and a missing settlement +2.2829, both ≈ the premium,
+against a required 0.000, and **both produced smooth, plausible histograms.**
+That is the argument for validating against closed forms rather than eyeballing
+distributions.
 
 ### [Day 2](results/day2.md) — How much edge do you need?
 
@@ -309,7 +311,7 @@ stationary constant.
 bs.py                     Black-Scholes pricing, Greeks, implied vol, dollar gamma
 paths.py                  GBM path simulation (exact log-Euler), realized vol
 hedge.py                  the hedging engine + closed-form predictions
-test_day1.py              56 validation checks
+test_day1.py              56 validation checks (writeup: results/day1.md)
 explore.py                interactive VS Code cells, walk through it yourself
 day2_distribution.py      P&L distribution, edge sweep, vol-uncertainty
 day3_convergence.py       N-sweep, var = a + b/N, leverage analysis
