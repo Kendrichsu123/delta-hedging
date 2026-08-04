@@ -68,19 +68,36 @@ AAPL is a single name — more volatile and more dispersed than an index would b
 
 ## 3. Hedging real paths
 
-Sell at 29.26% (5 vol points above the full-sample realized 24.26%), hedge once
-per trading day (N=21). **GBM is matched to the same volatility**, so the only
-difference is the *shape* of the return distribution.
+### Matching the edge, not just the volatility
+
+The reference vol here is the **mean 21-day window vol (22.39%)**, not the
+full-sample vol (24.26%). Those are different numbers and using the wrong one
+silently biases the comparison.
+
+Full-sample vol is `sqrt(average variance)`. Mean window vol is
+`average of sqrt(variance)`. Square root is concave, so **Jensen's inequality
+makes the second strictly smaller**, and the gap grows with how dispersed the
+window vols are — 1.9 points for AAPL, 3.4 points for SPY.
+
+Selling 5 points above the *full-sample* figure therefore hands the real paths
+more edge than the GBM control gets, because GBM realizes its sigma by
+construction while the typical real window realizes less. On SPY that inflated
+the real mean by 53%, which matched the variance-edge ratio of 1.539 almost
+exactly — **the entire mean difference was the mismatch, not a property of real
+returns.**
+
+Both sides now sell 5 points above the same reference, so the only remaining
+difference is the shape of the return distribution.
 
 | | n | mean | std | P(loss) | skew | p5 |
 |---|---:|---:|---:|---:|---:|---:|
-| real, overlapping windows | 485 | 0.6870 | 0.9427 | **22.27%** | **−0.564** | −1.0128 |
-| real, block bootstrap | 20,000 | 0.5980 | 0.9034 | **23.71%** | **−0.529** | −0.9198 |
-| GBM (control) | 20,000 | 0.5764 | 0.5526 | 13.16% | **+0.233** | −0.2577 |
+| real, overlapping windows | 485 | 0.4766 | 0.9376 | **29.28%** | **−0.678** | −1.2037 |
+| real, block bootstrap | 20,000 | 0.3802 | 0.9012 | **29.71%** | **−0.670** | −1.1664 |
+| GBM (control) | 20,000 | 0.5761 | 0.5146 | 11.43% | **+0.253** | −0.1966 |
 
 ![real vs GBM](../figures/day8_real_vs_gbm.png)
 
-**The skew flips sign on real data.** +0.23 under GBM, **−0.53** on real returns —
+**The skew flips sign on real data.** +0.25 under GBM, **−0.67** on real returns —
 matched on volatility, matched on edge, matched on rebalancing frequency.
 
 Days 5 and 6 predicted this by *adding features to the model*. Day 8 confirms it
@@ -88,12 +105,15 @@ by *removing the model*. Two routes, same conclusion.
 
 The rest of the comparison:
 
-- **P(loss) nearly doubles**, 13.2% → 23.7%
-- **Spread is 63% wider**, 0.55 → 0.90, at identical volatility
-- **The 5th percentile is 3.6× worse**, −0.26 → −0.92
+- **P(loss) is 2.6× higher**, 11.4% → 29.7%
+- **The mean is 34% LOWER**, 0.576 → 0.380, at the same edge. Fat tails cost real
+  money: the big days cost more in gamma than the calm days save in theta.
+- **Spread is 75% wider**, 0.51 → 0.90
+- **The 5th percentile is 5.9× worse**, −0.20 → −1.17
 
-That last one is the practical statement. At the same volatility and the same
-edge, your bad month is nearly four times worse than the model says.
+The mean is the one to notice. Before the edge was matched properly, real returns
+appeared to *outperform* the model. They do not — that was the bias. Corrected,
+they underperform on every axis.
 
 ### Why the block bootstrap, and not an ordinary one
 

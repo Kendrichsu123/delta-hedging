@@ -160,15 +160,33 @@ def hedge_comparison(lr, sig, seed=1):
     print("\n" + "=" * 76)
     print("3. HEDGING REAL PATHS vs GBM MATCHED ON VOLATILITY")
     print("=" * 76)
-    si = sig + EDGE
-    print(f"  Sell at {si:.4f} ({EDGE*100:.0f} vol points above the full-sample realized {sig:.4f}),")
-    print(f"  hedge once per trading day (N={W}). GBM is matched to the same vol, so")
-    print("  the ONLY difference is the shape of the return distribution.\n")
 
     overlap = np.array([lr[i:i + W] for i in range(len(lr) - W + 1)])
+
+    # Match on the MEAN WINDOW vol, not the full-sample vol. Those are not the
+    # same number: full-sample vol is sqrt(average variance) while mean window
+    # vol is average of sqrt(variance), and sqrt is concave, so Jensen makes the
+    # second strictly smaller. The gap grows with how dispersed the window vols
+    # are -- 1.9 points for AAPL, 3.4 for SPY.
+    #
+    # Using the full-sample vol as the reference silently hands the REAL paths
+    # more edge than the GBM control, because the typical real window realizes
+    # less than the full-sample figure while GBM realizes its sigma by
+    # construction. Measured on SPY that inflated the real mean by 53%, which
+    # exactly matched the variance-edge ratio -- i.e. the entire mean difference
+    # was the mismatch, not a property of real returns.
+    ref = (overlap.std(axis=1) * np.sqrt(TRADING_DAYS)).mean()
+    si = ref + EDGE
+    print(f"  full-sample vol      {sig:.4f}")
+    print(f"  mean 21-day window   {ref:.4f}   <- the reference, see comment in source")
+    print(f"  sell at              {si:.4f}   ({EDGE*100:.0f} vol points above it)")
+    print(f"  hedge once per trading day (N={W}); GBM sigma set to {ref:.4f} so BOTH")
+    print("  face the same edge against their own typical realized vol. The only")
+    print("  remaining difference is the shape of the return distribution.\n")
+
     boot = block_bootstrap(lr, 20_000, seed=seed)
     rng = np.random.default_rng(seed)
-    gbm = gbm_paths(100.0, 0.0, sig, T, W, 20_000, seed=seed)
+    gbm = gbm_paths(100.0, 0.0, ref, T, W, 20_000, seed=seed)
 
     sets = [
         ("real, overlapping windows", paths_from_returns(overlap)),
