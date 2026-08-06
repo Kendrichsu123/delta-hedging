@@ -248,7 +248,7 @@ minimum assuming convergence. A mechanism assuming independence.
 ## The 60-second version
 
 > I built a delta-hedging simulator and validated it against every closed form in
-> the literature — 66 checks. It says selling volatility needs about 7 vol points
+> the literature — 56 checks. It says selling volatility needs about 7 vol points
 > of edge to be reliably profitable once you account for realistic forecast error,
 > and that where the stock spends its time matters more than how much it moves.
 >

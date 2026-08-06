@@ -107,6 +107,10 @@ Crossing edge with forecast error gives the actual decision table:
 **With a realistic 3-point vol forecast error you need ~7 vol points of edge to
 get the loss rate under 5%.** Not 2, not 3.
 
+Produced by `decision_table()` in [`day2_distribution.py`](day2_distribution.py),
+which asserts the grid is monotone in both directions — a worse forecast can only
+raise the loss rate, more edge can only lower it.
+
 ### [Day 3](results/day3.md) — How much risk can rebalancing remove?
 
 Fits `var(N) = a + b/N` to separate removable discretization noise from an
