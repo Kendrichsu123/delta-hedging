@@ -72,7 +72,7 @@ Each day answers one decision. Full writeups in [`results/`](results/).
 
 ### [Day 1](results/day1.md) — Can any number this produces be trusted?
 
-56 checks against closed forms and arbitrage identities before any analysis.
+66 checks against closed forms and arbitrage identities before any analysis.
 The headline test: sell at exactly the vol the stock realizes, and P&L must
 collapse to zero.
 
@@ -106,6 +106,10 @@ Crossing edge with forecast error gives the actual decision table:
 
 **With a realistic 3-point vol forecast error you need ~7 vol points of edge to
 get the loss rate under 5%.** Not 2, not 3.
+
+Produced by `decision_table()` in [`day2_distribution.py`](day2_distribution.py),
+which asserts the grid is monotone in both directions — a worse forecast can only
+raise the loss rate, more edge can only lower it.
 
 ### [Day 3](results/day3.md) — How much risk can rebalancing remove?
 
@@ -291,7 +295,7 @@ last.
 **Assumes, and these are load-bearing:**
 
 1. **Realized vol is a known constant.** Tested in isolation — relaxing it to a
-   3-point forecast error flips the skew sign and takes P(loss) 2.0% → 8.9%.
+   3-point forecast error flips the skew sign and takes P(loss) 2.0% → 11.4%.
 2. **The stock moves continuously, with no gaps.** Tested in Day 6 — a scheduled
    jump puts a floor of 12.2% under P(loss) that no amount of rebalancing lifts,
    and drives the skew to −1.60.
@@ -311,7 +315,7 @@ stationary constant.
 bs.py                     Black-Scholes pricing, Greeks, implied vol, dollar gamma
 paths.py                  GBM path simulation (exact log-Euler), realized vol
 hedge.py                  the hedging engine + closed-form predictions
-test_day1.py              56 validation checks (writeup: results/day1.md)
+test_day1.py              66 validation checks (writeup: results/day1.md)
 explore.py                interactive VS Code cells, walk through it yourself
 day2_distribution.py      P&L distribution, edge sweep, vol-uncertainty
 day3_convergence.py       N-sweep, var = a + b/N, leverage analysis
@@ -333,7 +337,7 @@ figures/                  generated charts
 
 ```bash
 pip install -r requirements.txt
-python test_day1.py          # 56 checks, ~1 min
+python test_day1.py          # 66 checks, ~1 min
 python day2_distribution.py  # ~75s
 python day3_convergence.py   # ~75s
 python day4_path_dependence.py
@@ -382,7 +386,7 @@ distribution the sample minimum drifts −0.16 → −1.40 while p1 moves only �
 
 ## Status
 
-Days 1–8 complete. 56/56 checks passing.
+Days 1–8 complete. 66/66 checks passing.
 
 Day 6 was written as a prediction — that a scheduled jump would flip the skew
 negative and stop P(loss) from going to zero as you hedge more, because you

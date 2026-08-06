@@ -138,7 +138,8 @@ def vol_uncertainty(n_total=40_000, N=30, seed=77):
     print("3. What if you DON'T know realized vol in advance?")
     print("   Sell at 20% expecting 15%; realized drawn per trade from N(15%, s).")
     print("=" * 72)
-    print(f"{'s (forecast error)':>20} {'mean':>9} {'std':>8} {'P(loss)':>9} {'mean/std':>9}")
+    print(f"{'s (forecast error)':>20} {'mean':>9} {'std':>8} {'P(loss)':>9} "
+          f"{'skew':>8} {'mean/std':>9}")
 
     rng = np.random.default_rng(seed)
     out = {}
@@ -154,8 +155,12 @@ def vol_uncertainty(n_total=40_000, N=30, seed=77):
                 for i, sr in enumerate(srs)
             ])
         out[s] = pool
+        # Skew is printed here because the README's headline claim is that a
+        # 3-point forecast error flips it. A claim in prose that no run reports
+        # is a claim that cannot go stale loudly.
         print(f"{s:20.3f} {pool.mean():+9.4f} {pool.std():8.4f} "
-              f"{(pool < 0).mean():9.4f} {pool.mean() / pool.std():9.3f}")
+              f"{(pool < 0).mean():9.4f} {skew(pool):+8.3f} "
+              f"{pool.mean() / pool.std():9.3f}")
 
     print("\n  The mean barely moves. The spread and the loss rate do not.")
     return out
@@ -164,6 +169,66 @@ def vol_uncertainty(n_total=40_000, N=30, seed=77):
 # ---------------------------------------------------------------------------
 # Figures
 # ---------------------------------------------------------------------------
+
+
+def decision_table(edges=(0.025, 0.050, 0.070), errors=(0.0, 0.02, 0.03, 0.04),
+                   n_total=40_000, N=30, seed=91):
+    """Cross the edge you THINK you have with how wrong your forecast can be.
+
+    `vol_uncertainty` above sweeps the forecast error at a single 5-point edge.
+    That answers "how much does uncertainty cost me?" but not the question an
+    actual decision needs: "given that my forecast is only good to s, how much
+    edge do I need before this is worth doing?" Those are different questions
+    and only the crossed grid answers the second.
+
+    Each cell: sell at SIGMA_I, believe realized will come in `edge` below that,
+    and let the realized vol actually drawn per trade be N(belief, s). Reports
+    P(loss). The s=0 column is the control -- a perfect forecast -- and every
+    row must be monotone across it, because more forecast error cannot make a
+    trade safer.
+    """
+    print(f"\n{'=' * 72}")
+    print("4. The decision table: edge needed vs. forecast accuracy")
+    print(f"   Sell at {SIGMA_I:.0%}; realized drawn per trade from N(belief, s).")
+    print("=" * 72)
+
+    rng = np.random.default_rng(seed)
+    header = "".join(f"{s * 100:>9.0f}pt" for s in errors)
+    print(f"{'edge you think':>16} |{header}")
+
+    grid = np.zeros((len(edges), len(errors)))
+    for i, edge in enumerate(edges):
+        belief = SIGMA_I - edge
+        cells = []
+        for j, s in enumerate(errors):
+            if s == 0.0:
+                pool = simulate_hedge(sigma_real=belief, N=N, n_paths=n_total,
+                                      seed=1000, **BASE).pnl
+            else:
+                # Same construction as vol_uncertainty: many small batches, each
+                # at its own draw of realized vol, pooled. One batch per draw is
+                # what makes sigma_real vary ACROSS trades rather than within.
+                n_batch = 200
+                srs = np.clip(rng.normal(belief, s, n_batch), 0.02, None)
+                pool = np.concatenate([
+                    simulate_hedge(sigma_real=float(sr), N=N,
+                                   n_paths=n_total // n_batch,
+                                   seed=1000 + k, **BASE).pnl
+                    for k, sr in enumerate(srs)
+                ])
+            grid[i, j] = (pool < 0).mean()
+            cells.append(f"{grid[i, j] * 100:8.1f}%")
+        print(f"{edge * 100:15.1f}pt |{''.join(cells)}")
+
+    # Monotonicity is the check that this table means anything: within a row,
+    # a worse forecast can only raise the loss rate, and down a column, more
+    # edge can only lower it. Asserted rather than eyeballed.
+    assert np.all(np.diff(grid, axis=1) >= -0.01), "loss rate fell as forecast worsened"
+    assert np.all(np.diff(grid, axis=0) <= 0.01), "loss rate rose as edge increased"
+
+    print("\n  Read down a column, not across a row: the column is the world you")
+    print("  are actually in, and the row is what it costs to be wrong about it.")
+    return edges, errors, grid
 
 
 def fig_distribution(res, path="figures/day2_distribution.png"):
@@ -237,6 +302,7 @@ if __name__ == "__main__":
     res = base_case()
     sigmas, edge_pts, Ns, grid = edge_sweep()
     out = vol_uncertainty()
+    decision_table()
 
     print(f"\n{'=' * 72}")
     print("FIGURES")
