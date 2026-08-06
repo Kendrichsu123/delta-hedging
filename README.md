@@ -295,7 +295,7 @@ last.
 **Assumes, and these are load-bearing:**
 
 1. **Realized vol is a known constant.** Tested in isolation — relaxing it to a
-   3-point forecast error flips the skew sign and takes P(loss) 2.0% → 8.9%.
+   3-point forecast error flips the skew sign and takes P(loss) 2.0% → 11.4%.
 2. **The stock moves continuously, with no gaps.** Tested in Day 6 — a scheduled
    jump puts a floor of 12.2% under P(loss) that no amount of rebalancing lifts,
    and drives the skew to −1.60.

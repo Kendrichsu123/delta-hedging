@@ -138,7 +138,8 @@ def vol_uncertainty(n_total=40_000, N=30, seed=77):
     print("3. What if you DON'T know realized vol in advance?")
     print("   Sell at 20% expecting 15%; realized drawn per trade from N(15%, s).")
     print("=" * 72)
-    print(f"{'s (forecast error)':>20} {'mean':>9} {'std':>8} {'P(loss)':>9} {'mean/std':>9}")
+    print(f"{'s (forecast error)':>20} {'mean':>9} {'std':>8} {'P(loss)':>9} "
+          f"{'skew':>8} {'mean/std':>9}")
 
     rng = np.random.default_rng(seed)
     out = {}
@@ -154,8 +155,12 @@ def vol_uncertainty(n_total=40_000, N=30, seed=77):
                 for i, sr in enumerate(srs)
             ])
         out[s] = pool
+        # Skew is printed here because the README's headline claim is that a
+        # 3-point forecast error flips it. A claim in prose that no run reports
+        # is a claim that cannot go stale loudly.
         print(f"{s:20.3f} {pool.mean():+9.4f} {pool.std():8.4f} "
-              f"{(pool < 0).mean():9.4f} {pool.mean() / pool.std():9.3f}")
+              f"{(pool < 0).mean():9.4f} {skew(pool):+8.3f} "
+              f"{pool.mean() / pool.std():9.3f}")
 
     print("\n  The mean barely moves. The spread and the loss rate do not.")
     return out
