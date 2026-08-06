@@ -18,7 +18,9 @@ at discrete intervals, and study the distribution of what you end up with.
 >
 > This project localizes the discrepancy to two assumptions and quantifies the
 > first: relaxing perfect volatility knowledge to a realistic 3-point forecast
-> error **flips the skew from +0.40 to −0.01** while barely moving the mean.
+> error **collapses the skew from +0.39 to +0.05** while barely moving the mean.
+> It takes a 5-point error to drive the skew negative (−0.33) — and even that is
+> an order of magnitude short of the −4.17 real SPY returns produce.
 
 Worst outcome out of 40,000 simulated trades, as rebalancing gets finer:
 
@@ -99,9 +101,9 @@ Crossing edge with forecast error gives the actual decision table:
 
 ```
  edge you think |      s=0pt     s=2pt     s=3pt     s=4pt
-          2.5pt |     17.4%     20.0%     25.8%     30.2%
-          5.0pt |      2.0%      6.9%     10.7%     13.5%
-          7.0pt |      0.1%      1.3%      4.0%      7.7%
+          2.5pt |     17.3%     24.4%     26.9%     28.4%
+          5.0pt |      2.0%      6.2%     10.3%     15.9%
+          7.0pt |      0.1%      1.5%      3.8%      6.4%
 ```
 
 **With a realistic 3-point vol forecast error you need ~7 vol points of edge to
@@ -295,7 +297,8 @@ last.
 **Assumes, and these are load-bearing:**
 
 1. **Realized vol is a known constant.** Tested in isolation — relaxing it to a
-   3-point forecast error flips the skew sign and takes P(loss) 2.0% → 11.4%.
+   3-point forecast error erases the positive skew (+0.39 → +0.05) and takes
+   P(loss) 2.0% → 11.4%. A 5-point error turns the skew negative (−0.33).
 2. **The stock moves continuously, with no gaps.** Tested in Day 6 — a scheduled
    jump puts a floor of 12.2% under P(loss) that no amount of rebalancing lifts,
    and drives the skew to −1.60.

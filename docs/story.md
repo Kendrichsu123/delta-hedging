@@ -147,8 +147,10 @@ positive when σᵢ > σᵣ, so no path *can* lose.
 
 **A model that says a blow-up-prone strategy is riskless would get you killed.**
 That is the finding. Two suspects named: σᵣ known, and no gaps. The first was
-convicted in isolation — a 3-point forecast error flips the skew **+0.40 → −0.01**
-while the mean barely moves.
+convicted in isolation — a 3-point forecast error collapses the skew
+**+0.39 → +0.05** while the mean barely moves, and a 5-point error turns it
+negative (−0.33). Forecast error alone erases the model's positive skew; it does
+not manufacture the deeply negative one real returns show.
 
 *(This day also corrected a mechanism stated confidently for days: both components
 are negatively skewed, and the positive sign comes entirely from the cross term
@@ -254,7 +256,7 @@ minimum assuming convergence. A mechanism assuming independence.
 >
 > Then the model told me selling volatility was riskless — zero losses in 40,000
 > trades, positively skewed. That is the opposite of reality, so I traced it to two
-> assumptions. Uncertain realized vol flips the skew. A scheduled jump puts a
+> assumptions. Uncertain realized vol erases the positive skew. A scheduled jump puts a
 > **12.2% floor under the loss rate that no amount of rebalancing lifts**, because
 > you cannot rebalance through a gap.
 >

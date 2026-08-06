@@ -99,13 +99,18 @@ Everything so far assumes σᵣ is **known in advance**. It never is. Same trade
 sell at 20% expecting 15% — but realized vol now drawn per trade from N(15%, s),
 where s is how wrong your forecast typically is:
 
-| forecast error s | mean | std | P(loss) | mean/std |
-|---:|---:|---:|---:|---:|
-| 0.000 | +0.5721 | 0.3246 | 0.0196 | 1.763 |
-| 0.010 | +0.5770 | 0.3468 | 0.0306 | 1.664 |
-| 0.020 | +0.5711 | 0.4011 | 0.0621 | 1.424 |
-| 0.030 | +0.5568 | 0.4876 | 0.1138 | 1.142 |
-| 0.050 | +0.5403 | 0.6998 | 0.1975 | 0.772 |
+| forecast error s | mean | std | P(loss) | skew | mean/std |
+|---:|---:|---:|---:|---:|---:|
+| 0.000 | +0.5721 | 0.3246 | 0.0196 | +0.390 | 1.763 |
+| 0.010 | +0.5770 | 0.3468 | 0.0306 | +0.308 | 1.664 |
+| 0.020 | +0.5711 | 0.4011 | 0.0621 | +0.152 | 1.424 |
+| 0.030 | +0.5568 | 0.4876 | 0.1138 | +0.052 | 1.142 |
+| 0.050 | +0.5403 | 0.6998 | 0.1975 | −0.329 | 0.772 |
+
+**The skew does not flip at 3 points — it collapses.** +0.390 to +0.052 is the
+positive skew being erased, not reversed. It goes negative only at s = 5 points
+(−0.329). Earlier drafts of this repo claimed a flip at 3 points; the run does
+not support it.
 
 ![vol uncertainty](../figures/day2_vol_uncertainty.png)
 
