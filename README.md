@@ -70,16 +70,18 @@ That is the whole thesis, in arithmetic. See [`docs/intuition.md`](docs/intuitio
 
 Each day answers one decision. Full writeups in [`results/`](results/).
 
-### [Day 1](test_day1.py) — Can any number this produces be trusted?
+### [Day 1](results/day1.md) — Can any number this produces be trusted?
 
-56 checks against closed forms and arbitrage identities before any analysis.
+66 checks against closed forms and arbitrage identities before any analysis.
 The headline test: sell at exactly the vol the stock realizes, and P&L must
 collapse to zero.
 
-Three deliberately introduced bugs — a sign flip, a look-ahead, a missing
-settlement — all returned ≈ +2.28 (the option premium) against a required 0.000,
-and **all three produced smooth, plausible histograms.** That is the argument for
-validating against closed forms rather than eyeballing distributions.
+Three deliberately introduced bugs were run against it. The sign flip is absurd
+on sight — mean +102.04 on a $2.29 premium. **The other two are not.** A
+look-ahead returned +2.2732 and a missing settlement +2.2829, both ≈ the premium,
+against a required 0.000, and **both produced smooth, plausible histograms.**
+That is the argument for validating against closed forms rather than eyeballing
+distributions.
 
 ### [Day 2](results/day2.md) — How much edge do you need?
 
@@ -104,6 +106,10 @@ Crossing edge with forecast error gives the actual decision table:
 
 **With a realistic 3-point vol forecast error you need ~7 vol points of edge to
 get the loss rate under 5%.** Not 2, not 3.
+
+Produced by `decision_table()` in [`day2_distribution.py`](day2_distribution.py),
+which asserts the grid is monotone in both directions — a worse forecast can only
+raise the loss rate, more edge can only lower it.
 
 ### [Day 3](results/day3.md) — How much risk can rebalancing remove?
 
@@ -289,7 +295,7 @@ last.
 **Assumes, and these are load-bearing:**
 
 1. **Realized vol is a known constant.** Tested in isolation — relaxing it to a
-   3-point forecast error flips the skew sign and takes P(loss) 2.0% → 8.9%.
+   3-point forecast error flips the skew sign and takes P(loss) 2.0% → 11.4%.
 2. **The stock moves continuously, with no gaps.** Tested in Day 6 — a scheduled
    jump puts a floor of 12.2% under P(loss) that no amount of rebalancing lifts,
    and drives the skew to −1.60.
@@ -309,12 +315,16 @@ stationary constant.
 bs.py                     Black-Scholes pricing, Greeks, implied vol, dollar gamma
 paths.py                  GBM path simulation (exact log-Euler), realized vol
 hedge.py                  the hedging engine + closed-form predictions
-test_day1.py              56 validation checks
+test_day1.py              66 validation checks (writeup: results/day1.md)
 explore.py                interactive VS Code cells, walk through it yourself
 day2_distribution.py      P&L distribution, edge sweep, vol-uncertainty
 day3_convergence.py       N-sweep, var = a + b/N, leverage analysis
 day4_path_dependence.py   dollar gamma, what predicts P&L and what doesn't
 day5_skew.py              skew vs N with bootstrap, third-moment decomposition
+day6_jump.py              scheduled jump at a known time, priced to hold edge fixed
+day7_costs.py             proportional costs, the √N/1/√N tension, optimal N
+day8_real_paths.py        the engine on real SPY returns, against a matched GBM control
+data/fetch_prices.py      fetches a daily close series for Day 8
 docs/intuition.md         the whole trade in arithmetic, no calculus
 docs/exercises.md         predict-then-run exercises with an answer key
 docs/corrections.md       every claim that was revised, and what triggered it
@@ -327,13 +337,14 @@ figures/                  generated charts
 
 ```bash
 pip install -r requirements.txt
-python test_day1.py          # 56 checks, ~1 min
+python test_day1.py          # 66 checks, ~1 min
 python day2_distribution.py  # ~75s
 python day3_convergence.py   # ~75s
 python day4_path_dependence.py
 python day5_skew.py          # ~3 min
 python day6_jump.py          # ~2 min
 python day7_costs.py         # ~6 min
+python data/fetch_prices.py  # builds data/spy_daily.csv (needs network)
 python day8_real_paths.py    # ~30s
 ```
 
@@ -375,15 +386,29 @@ distribution the sample minimum drifts −0.16 → −1.40 while p1 moves only �
 
 ## Status
 
-Days 1–5 complete. 56/56 checks passing.
+Days 1–8 complete. 66/66 checks passing.
 
-**Next — Day 6:** add a scheduled jump. Prediction: the skew flips negative, the
-worst case stops being bounded, and P(loss) stops going to zero as you hedge
-more, because you cannot rebalance through a gap. Then plug in the ±0.95% FOMC
-premium measured in [vol-surface](https://github.com/Kendrichsu123/vol-surface)
-and ask whether selling that specific event would have paid.
+Day 6 was written as a prediction — that a scheduled jump would flip the skew
+negative and stop P(loss) from going to zero as you hedge more, because you
+cannot rebalance through a gap. It held: P(loss) plateaus at 12.2% and skew
+reaches −1.60. Day 7 turned Day 3's "past N≈256 you are paying for nothing" into
+a measured optimum, and Day 8 put the engine on ten years of real SPY returns,
+where the skew flip reproduces without any jump being modelled at all.
 
-**Then, ranked:** transaction costs (half a day — turns "past N=256 is waste"
-into an optimal N, checkable against Leland 1985), and running the engine on
-**real historical SPY paths** instead of GBM, which is the only thing here that
-would turn "contradicts folklore" into "and here is what actually happened."
+**Reproducing Day 8.** The SPY series is not committed — run
+`python data/fetch_prices.py` to build `data/spy_daily.csv`. Without it Day 8
+falls back to the committed `data/aapl_daily.csv`, which is a shorter single-name
+series and gives the weaker result (skew −0.67 against SPY's −4.17); the
+substitution is deliberate and `results/day8.md` explains what changes.
+
+**What is still open**, ranked by what it would settle:
+
+- **Attribution within real returns.** Day 8 changes fat tails, clustering and
+  gaps all at once, so it can say reality differs and by how much, but not which
+  feature did it. Bootstrapping returns to break clustering while holding the
+  marginal distribution fixed would separate the two.
+- **More than one event.** The FOMC trade in Day 6 is n=1, and a 62/38 ex-ante
+  proposition resolving favourably once is not evidence that it pays.
+- **A stochastic-volatility path generator.** The remaining load-bearing
+  assumption is that σᵣ is a constant the hedger merely mis-estimates. Day 2
+  relaxes the *estimate*; nothing here relaxes the *constant*.
