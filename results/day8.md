@@ -194,15 +194,15 @@ only confirms the direction.
 ## The data, and reproducing this
 
 `data/spy_daily.csv` — 2,513 daily closes, Aug 2016 to Aug 2026, fetched from
-stooq. Not committed to the repo; run:
+stooq. Committed to the repo, so a fresh clone runs without a network call:
 
 ```bash
-python data/fetch_prices.py            # SPY, 10 years
 python day8_real_paths.py
+python data/fetch_prices.py            # optional: rebuild the SPY series from source
 ```
 
-`data/aapl_daily.csv` ships with the repo and is used automatically if the SPY
-file is absent, so a fresh clone runs without a network call. The AAPL results
+`data/aapl_daily.csv` also ships with the repo and is used automatically if the
+SPY file is absent. The AAPL results
 are kept above because the **contrast** between them carries the argument — a
 single name with earnings gaps against an index without them.
 

@@ -1,6 +1,17 @@
 # Delta-Hedging P&L Simulation
 
+[![tests](https://github.com/Kendrichsu123/delta-hedging/actions/workflows/tests.yml/badge.svg)](https://github.com/Kendrichsu123/delta-hedging/actions/workflows/tests.yml)
+
 What it actually looks like to sell volatility and hedge it.
+
+**TL;DR.** A delta-hedging simulator, validated by 66 checks against closed
+forms, used to ask what selling volatility actually earns. Sell a one-month
+option 5 vol points rich and hedge it daily: under the textbook model the trade
+loses 3.7% of the time with positive skew (+0.32). On ten years of real SPY
+returns, at the same volatility and the same edge, it loses **22% of the time
+with skew −4.17**.
+
+![Same volatility, same edge: P&L on simulated GBM paths vs real SPY returns](figures/day8_real_vs_gbm.png)
 
 A previous project ([vol-surface](https://github.com/Kendrichsu123/vol-surface))
 measured what the options market *charges* for risk. This one measures what
@@ -344,8 +355,7 @@ python day4_path_dependence.py
 python day5_skew.py          # ~3 min
 python day6_jump.py          # ~2 min
 python day7_costs.py         # ~6 min
-python data/fetch_prices.py  # builds data/spy_daily.csv (needs network)
-python day8_real_paths.py    # ~30s
+python day8_real_paths.py    # ~30s, uses the committed data/spy_daily.csv
 ```
 
 New here? Read [`docs/intuition.md`](docs/intuition.md), then work
@@ -395,11 +405,12 @@ reaches −1.60. Day 7 turned Day 3's "past N≈256 you are paying for nothing" 
 a measured optimum, and Day 8 put the engine on ten years of real SPY returns,
 where the skew flip reproduces without any jump being modelled at all.
 
-**Reproducing Day 8.** The SPY series is not committed — run
-`python data/fetch_prices.py` to build `data/spy_daily.csv`. Without it Day 8
-falls back to the committed `data/aapl_daily.csv`, which is a shorter single-name
-series and gives the weaker result (skew −0.67 against SPY's −4.17); the
-substitution is deliberate and `results/day8.md` explains what changes.
+**Reproducing Day 8.** The SPY series is committed as `data/spy_daily.csv`, so
+Day 8 runs from a fresh clone with no network call; `python data/fetch_prices.py`
+rebuilds it from source. If the file is absent, Day 8 falls back to the
+committed `data/aapl_daily.csv`, a shorter single-name series that gives the
+weaker result (skew −0.67 against SPY's −4.17); `results/day8.md` explains what
+changes.
 
 **What is still open**, ranked by what it would settle:
 
